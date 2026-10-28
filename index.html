@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Controle de Ponto</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: #eef2f6;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #edf2f7;
+      padding-bottom: 15px;
+      margin-bottom: 25px;
+    }
+    h1 { margin: 0; font-size: 24px; color: #1e293b; }
+    .select-posto {
+      padding: 8px 12px;
+      font-size: 15px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #f8fafc;
+      font-weight: 600;
+    }
+    .leitor-box {
+      text-align: center;
+      background: #f8fafc;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 25px;
+      margin-bottom: 25px;
+    }
+    .leitor-box p {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: #64748b;
+    }
+    #campoMatricula {
+      font-size: 28px;
+      letter-spacing: 2px;
+      text-align: center;
+      padding: 10px 15px;
+      width: 320px;
+      border: 2px solid #2563eb;
+      border-radius: 8px;
+      outline: none;
+    }
+    #alerta {
+      margin-top: 15px;
+      font-size: 16px;
+      font-weight: 600;
+      min-height: 24px;
+    }
+    .alerta-ok { color: #16a34a; }
+    .alerta-erro { color: #dc2626; }
+    .alerta-info { color: #2563eb; }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    th {
+      background-color: #f1f5f9;
+      color: #475569;
+      font-weight: 600;
+    }
+    .tag {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    .tag-ok { background: #dcfce7; color: #15803d; }
+    .tag-atraso { background: #fee2e2; color: #b91c1c; }
+    .tag-extra { background: #fef3c7; color: #b45309; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Controle de Ponto - Fiscais</h1>
+    <div>
+      <label for="postoAcesso"><strong>Posto Atual: </strong></label>
+      <select id="postoAcesso" class="select-posto">
+        <option value="Terminal">Terminal</option>
+        <option value="Garagem Sul">Garagem Sul</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="leitor-box">
+    <p>Aproxime o crachá do fiscal na leitora</p>
+    <input type="text" id="campoMatricula" autofocus autocomplete="off" placeholder="Aguardando...">
+    <div id="alerta"></div>
+  </div>
+
+  <h2>Relatório de Batidas de Hoje</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Horário</th>
+        <th>Matrícula</th>
+        <th>Fiscal</th>
+        <th>Local</th>
+        <th>Marcação</th>
+        <th>Status / Diagnóstico</th>
+      </tr>
+    </thead>
+    <tbody id="listaRelatorio">
+      <tr><td colspan="6" style="text-align:center; color:#94a3b8;">Carregando histórico...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  // COLOQUE AQUI A SUA URL GERADA NO GOOGLE APPS SCRIPT
+  const URL_API_GOOGLE = "https://script.google.com/macros/s/AKfycbyWRyOr7AhYSSOTMxTIOP-HKioX5xkIYwN-Yhv_gVBVlu0wqsAgP-boDxhr_v7n_Ei1uw/exec";
+
+  const campo = document.getElementById('campoMatricula');
+  const alerta = document.getElementById('alerta');
+  const posto = document.getElementById('postoAcesso');
+  const tabela = document.getElementById('listaRelatorio');
+
+  // Garante autofoco no input para capturar os dados da leitora
+  function focarCampo() {
+    campo.focus();
+  }
+  document.addEventListener('click', focarCampo);
+  window.addEventListener('load', () => {
+    focarCampo();
+    carregarRelatorio();
+  });
+
+  // Captura o Enter gerado pelo leitor/emulador
+  campo.addEventListener('keydown', async function(e) {
+    if (e.key === 'Enter') {
+      const matricula = campo.value.trim();
+      if (!matricula) return;
+
+      alerta.className = "alerta-info";
+      alerta.innerText = "Validando ponto...";
+
+      try {
+        const resposta = await fetch(URL_API_GOOGLE, {
+          method: 'POST',
+          body: JSON.stringify({
+            matricula: matricula,
+            local: posto.value
+          })
+        });
+
+        const dados = await resposta.json();
+
+        if (dados.sucesso) {
+          alerta.className = "alerta-ok";
+          alerta.innerText = `Ponto de ${dados.nome} gravado com sucesso! (${dados.status})`;
+          carregarRelatorio();
+        } else {
+          alerta.className = "alerta-erro";
+          alerta.innerText = dados.mensagem;
+        }
+      } catch (err) {
+        alerta.className = "alerta-erro";
+        alerta.innerText = "Falha ao enviar registro. Verifique a conexão.";
+      } finally {
+        campo.value = '';
+        focarCampo();
+      }
+    }
+  });
+
+  // Busca as batidas do dia diretamente da planilha
+  async function carregarRelatorio() {
+    try {
+      const resp = await fetch(URL_API_GOOGLE);
+      const lista = await resp.json();
+
+      if (lista.length === 0) {
+        tabela.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8;">Nenhum registro encontrado hoje.</td></tr>';
+        return;
+      }
+
+      tabela.innerHTML = '';
+      lista.forEach(item => {
+        let tagClass = 'tag-ok';
+        if (item.status.includes('Atrasado') || item.status.includes('Antecipada')) tagClass = 'tag-atraso';
+        if (item.status.includes('Extra')) tagClass = 'tag-extra';
+
+        const row = `
+          <tr>
+            <td><strong>${item.hora}</strong></td>
+            <td>${item.matricula}</td>
+            <td>${item.nome}</td>
+            <td>${item.local}</td>
+            <td>${item.marcacao}</td>
+            <td><span class="tag ${tagClass}">${item.status}</span></td>
+          </tr>
+        `;
+        tabela.innerHTML += row;
+      });
+    } catch (e) {
+      tabela.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#ef4444;">Erro ao carregar o relatório.</td></tr>';
+    }
+  }
+</script>
+
+</body>
+</html>
