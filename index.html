@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terminal de Ponto</title>
+  <title>Terminal de Ponto - Tempo Real</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -22,20 +22,18 @@
       border-radius: 16px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.3);
       width: 100%;
-      max-width: 580px;
+      max-width: 600px;
       text-align: center;
     }
-    .posto-selector {
-      margin-bottom: 25px;
-      text-align: right;
-    }
-    .posto-selector select {
-      padding: 6px 12px;
-      font-size: 14px;
-      border-radius: 6px;
-      border: 1px solid #cbd5e1;
-      background: #f8fafc;
+    .posto-tag {
+      display: inline-block;
+      background: #e2e8f0;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
       font-weight: 600;
+      color: #334155;
+      margin-bottom: 20px;
     }
     h1 {
       margin: 0 0 10px 0;
@@ -45,63 +43,70 @@
     p.instrucao {
       color: #64748b;
       font-size: 16px;
-      margin-bottom: 30px;
+      margin-bottom: 25px;
     }
-    #campoCartao {
-      font-size: 30px;
-      letter-spacing: 2px;
-      text-align: center;
-      padding: 14px 20px;
-      width: 100%;
-      max-width: 360px;
-      border: 3px solid #2563eb;
-      border-radius: 10px;
-      outline: none;
+    .status-box {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 30px 20px;
       background: #f8fafc;
-      margin-bottom: 20px;
-    }
-    .alerta {
-      font-size: 17px;
-      font-weight: 700;
-      min-height: 48px;
-      padding: 10px;
-      border-radius: 8px;
+      min-height: 140px;
       display: flex;
-      align-items: center;
+      flex-direction: column;
       justify-content: center;
+      align-items: center;
       transition: all 0.3s ease;
-      opacity: 0;
     }
-    .alerta.visivel { opacity: 1; }
-    .alerta-ok { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-    .alerta-erro { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-    .alerta-info { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
-    .relogio {
-      margin-top: 25px;
+    .status-box.sucesso {
+      border-color: #22c55e;
+      background: #f0fdf4;
+    }
+    .nome-colaborador {
+      font-size: 24px;
+      font-weight: bold;
+      color: #15803d;
+      margin-bottom: 6px;
+    }
+    .detalhe-ponto {
+      font-size: 16px;
+      color: #166534;
+    }
+    .aguardando-texto {
       font-size: 20px;
       color: #94a3b8;
+      font-weight: 500;
+    }
+    .relogio {
+      margin-top: 25px;
+      font-size: 22px;
+      color: #64748b;
       font-family: monospace;
       font-weight: bold;
+    }
+    .pulso-ativo {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      background: #22c55e;
+      border-radius: 50%;
+      margin-right: 6px;
     }
   </style>
 </head>
 <body>
 
 <div class="terminal-card">
-  <div class="posto-selector">
-    <label for="postoAcesso"><strong>Posto: </strong></label>
-    <select id="postoAcesso">
-      <option value="Terminal">Terminal</option>
-      <option value="Garagem Sul">Garagem Sul</option>
-    </select>
+  <div class="posto-tag">
+    <span class="pulso-ativo"></span> Terminal Conectado
   </div>
 
   <h1>Registro de Ponto</h1>
   <p class="instrucao">Aproxime o cartão na leitora</p>
 
-  <input type="text" id="campoCartao" autofocus autocomplete="off" placeholder="Aguardando...">
-
-  <div id="boxAlerta" class="alerta"></div>
+  <!-- Painel que atualiza em tempo real -->
+  <div id="painelStatus" class="status-box">
+    <div id="conteudoStatus" class="aguardando-texto">Aguardando aproximação do crachá...</div>
+  </div>
 
   <div class="relogio" id="txtRelogio">--:--:--</div>
 </div>
@@ -109,63 +114,61 @@
 <script>
   const URL_API = "https://script.google.com/macros/s/AKfycbyWRyOr7AhYSSOTMxTIOP-HKioX5xkIYwN-Yhv_gVBVlu0wqsAgP-boDxhr_v7n_Ei1uw/exec";
 
-  const campo = document.getElementById('campoCartao');
-  const alerta = document.getElementById('boxAlerta');
-  const posto = document.getElementById('postoAcesso');
-  let temporizadorMensagem = null;
+  let ultimaHoraBatida = null;
+  let temporizadorLimpeza = null;
 
-  function manterFoco() {
-    campo.focus();
-  }
-  document.addEventListener('click', manterFoco);
   window.addEventListener('load', () => {
-    manterFoco();
     iniciarRelogio();
+    // Consulta a planilha a cada 2 segundos para checar novas batidas do Python
+    setInterval(verificarNovasBatidas, 2000);
   });
 
-  function exibirMensagem(texto, tipo, duracaoMs = 5000) {
-    if (temporizadorMensagem) clearTimeout(temporizadorMensagem);
+  async function verificarNovasBatidas() {
+    try {
+      const resp = await fetch(`${URL_API}?acao=relatorioHoje`);
+      const registros = await resp.json();
 
-    alerta.className = `alerta visivel alerta-${tipo}`;
-    alerta.innerText = texto;
+      if (!registros || registros.length === 0) return;
 
-    temporizadorMensagem = setTimeout(() => {
-      alerta.className = "alerta";
-      alerta.innerText = "";
-    }, duracaoMs);
+      // O primeiro elemento do array é a batida mais recente
+      const ultimaBatida = registros[0];
+      const identificadorBatida = `${ultimaBatida.matricula}_${ultimaBatida.hora}`;
+
+      // Na primeira execução após abrir a página, apenas memoriza o último registro
+      if (ultimaHoraBatida === null) {
+        ultimaHoraBatida = identificadorBatida;
+        return;
+      }
+
+      // Se houver uma nova batida gravada pelo Python
+      if (identificadorBatida !== ultimaHoraBatida) {
+        ultimaHoraBatida = identificadorBatida;
+        exibirPontoTempoReal(ultimaBatida);
+      }
+    } catch (e) {
+      // Falha temporária de rede, continuará tentando no próximo ciclo
+    }
   }
 
-  campo.addEventListener('keydown', async function(e) {
-    if (e.key === 'Enter') {
-      const matricula = campo.value.trim();
-      if (!matricula) return;
+  function exibirPontoTempoReal(batida) {
+    const painel = document.getElementById('painelStatus');
+    const conteudo = document.getElementById('conteudoStatus');
 
-      exibirMensagem("Gravando marcação...", "info", 10000);
+    if (temporizadorLimpeza) clearTimeout(temporizadorLimpeza);
 
-      try {
-        const resp = await fetch(URL_API, {
-          method: 'POST',
-          body: JSON.stringify({
-            matricula: matricula,
-            local: posto.value
-          })
-        });
+    painel.classList.add('sucesso');
+    conteudo.innerHTML = `
+      <div class="nome-colaborador">${batida.nome}</div>
+      <div class="detalhe-ponto">Ponto gravado às <strong>${batida.hora}</strong> (${batida.status})</div>
+    `;
 
-        const dados = await resp.json();
-
-        if (dados.sucesso) {
-          exibirMensagem(`Ponto de ${dados.nome} gravado com sucesso! (${dados.status})`, "ok", 5000);
-        } else {
-          exibirMensagem(`Atenção: ${dados.mensagem}`, "erro", 6000);
-        }
-      } catch (err) {
-        exibirMensagem("Erro de comunicação com o servidor de ponto.", "erro", 5000);
-      } finally {
-        campo.value = '';
-        manterFoco();
-      }
-    }
-  });
+    // Apaga a mensagem após 5 segundos e volta ao estado de espera
+    temporizadorLimpeza = setTimeout(() => {
+      painel.classList.remove('sucesso');
+      conteudo.className = "aguardando-texto";
+      conteudo.innerHTML = "Aguardando aproximação do crachá...";
+    }, 5000);
+  }
 
   function iniciarRelogio() {
     setInterval(() => {
