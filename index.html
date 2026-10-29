@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terminal de Ponto - Tempo Real</title>
+  <title>Terminal de Ponto - Monitorado</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -18,23 +18,53 @@
     }
     .terminal-card {
       background: #ffffff;
-      padding: 40px;
+      padding: 35px 30px;
       border-radius: 16px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.3);
       width: 100%;
       max-width: 600px;
       text-align: center;
+      transition: border 0.3s ease;
     }
-    .posto-tag {
-      display: inline-block;
-      background: #e2e8f0;
-      padding: 6px 14px;
+
+    /* Barra de Status do Python (Heartbeat) */
+    .barra-status-hardware {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
       border-radius: 20px;
       font-size: 13px;
-      font-weight: 600;
-      color: #334155;
-      margin-bottom: 20px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 25px;
+      transition: all 0.3s ease;
     }
+    .status-online {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #86efac;
+    }
+    .status-offline {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
+      animation: pulsoAlerta 1.5s infinite;
+    }
+    @keyframes pulsoAlerta {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.02); }
+    }
+    .indicador-bolinha {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .bolinha-verde { background: #22c55e; }
+    .bolinha-vermelha { background: #ef4444; }
+
     h1 {
       margin: 0 0 10px 0;
       color: #1e293b;
@@ -45,6 +75,8 @@
       font-size: 16px;
       margin-bottom: 25px;
     }
+
+    /* Painel Central de Status de Leitura */
     .status-box {
       border: 2px dashed #cbd5e1;
       border-radius: 12px;
@@ -61,6 +93,11 @@
       border-color: #22c55e;
       background: #f0fdf4;
     }
+    .status-box.bloqueado {
+      border-color: #fca5a5;
+      background: #fff1f2;
+    }
+
     .nome-colaborador {
       font-size: 24px;
       font-weight: bold;
@@ -72,10 +109,16 @@
       color: #166534;
     }
     .aguardando-texto {
-      font-size: 20px;
+      font-size: 19px;
       color: #94a3b8;
       font-weight: 500;
     }
+    .offline-texto {
+      font-size: 17px;
+      color: #b91c1c;
+      font-weight: bold;
+    }
+
     .relogio {
       margin-top: 25px;
       font-size: 22px;
@@ -83,27 +126,20 @@
       font-family: monospace;
       font-weight: bold;
     }
-    .pulso-ativo {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      background: #22c55e;
-      border-radius: 50%;
-      margin-right: 6px;
-    }
   </style>
 </head>
 <body>
 
 <div class="terminal-card">
-  <div class="posto-tag">
-    <span class="pulso-ativo"></span> Terminal Conectado
+  <!-- Barra de Conexão com o leitor local (leitor_ponto.py) -->
+  <div id="barraHardware" class="barra-status-hardware status-offline">
+    <span id="bolinhaHardware" class="indicador-bolinha bolinha-vermelha"></span>
+    <span id="txtStatusHardware">VERIFICANDO COMUNICAÇÃO COM O LEITOR...</span>
   </div>
 
   <h1>Registro de Ponto</h1>
   <p class="instrucao">Aproxime o cartão na leitora</p>
 
-  <!-- Painel que atualiza em tempo real -->
   <div id="painelStatus" class="status-box">
     <div id="conteudoStatus" class="aguardando-texto">Aguardando aproximação do crachá...</div>
   </div>
@@ -112,61 +148,123 @@
 </div>
 
 <script>
-  const URL_API = "https://script.google.com/macros/s/AKfycbyWRyOr7AhYSSOTMxTIOP-HKioX5xkIYwN-Yhv_gVBVlu0wqsAgP-boDxhr_v7n_Ei1uw/exec";
+  const URL_API_GOOGLE = "https://script.google.com/macros/s/AKfycbyWRyOr7AhYSSOTMxTIOP-HKioX5xkIYwN-Yhv_gVBVlu0wqsAgP-boDxhr_v7n_Ei1uw/exec";
+  const URL_STATUS_PYTHON = "http://127.0.0.1:5000";
 
   let ultimaHoraBatida = null;
   let temporizadorLimpeza = null;
+  let leitorEstaConectado = false;
 
   window.addEventListener('load', () => {
     iniciarRelogio();
-    // Consulta a planilha a cada 2 segundos para checar novas batidas do Python
-    setInterval(verificarNovasBatidas, 2000);
+    
+    // 1. Monitora o status do script Python local a cada 2 segundos
+    verificarStatusLeitorPython();
+    setInterval(verificarStatusLeitorPython, 2000);
+
+    // 2. Monitora novas batidas salvas na planilha a cada 2 segundos
+    setInterval(verificarNovasBatidasPlanilha, 2000);
   });
 
-  async function verificarNovasBatidas() {
+  // Checa se o leitor_ponto.py está rodando no computador
+  async function verificarStatusLeitorPython() {
+    const barra = document.getElementById('barraHardware');
+    const bolinha = document.getElementById('bolinhaHardware');
+    const txt = document.getElementById('txtStatusHardware');
+    const painel = document.getElementById('painelStatus');
+    const conteudo = document.getElementById('conteudoStatus');
+
     try {
-      const resp = await fetch(`${URL_API}?acao=relatorioHoje`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+      const resp = await fetch(URL_STATUS_PYTHON, { 
+        method: 'GET',
+        signal: controller.signal 
+      });
+      clearTimeout(timeoutId);
+
+      if (resp.ok) {
+        if (!leitorEstaConectado) {
+          leitorEstaConectado = true;
+          barra.className = "barra-status-hardware status-online";
+          bolinha.className = "indicador-bolinha bolinha-verde";
+          txt.innerText = "LEITOR ATIVO E OPERACIONAL";
+          
+          if (!painel.classList.contains('sucesso')) {
+            painel.className = "status-box";
+            conteudo.className = "aguardando-texto";
+            conteudo.innerHTML = "Aguardando aproximação do crachá...";
+          }
+        }
+      } else {
+        throw new Error();
+      }
+    } catch (e) {
+      if (leitorEstaConectado || txt.innerText.includes("VERIFICANDO")) {
+        leitorEstaConectado = false;
+        barra.className = "barra-status-hardware status-offline";
+        bolinha.className = "indicador-bolinha bolinha-vermelha";
+        txt.innerText = "ATENÇÃO: LEITOR DESCONECTADO OU FECHADO!";
+        
+        if (!painel.classList.contains('sucesso')) {
+          painel.className = "status-box bloqueado";
+          conteudo.className = "offline-texto";
+          conteudo.innerHTML = "⚠️ O programa do leitor não está ativo.<br>Inicie o <strong>iniciar_ponto.bat</strong> no computador.";
+        }
+      }
+    }
+  }
+
+  // Monitora se o Python gravou uma batida nova na nuvem
+  async function verificarNovasBatidasPlanilha() {
+    try {
+      const resp = await fetch(`${URL_API_GOOGLE}?acao=relatorioHoje`);
       const registros = await resp.json();
 
       if (!registros || registros.length === 0) return;
 
-      // O primeiro elemento do array é a batida mais recente
       const ultimaBatida = registros[0];
-      const identificadorBatida = `${ultimaBatida.matricula}_${ultimaBatida.hora}`;
+      const identificador = `${ultimaBatida.matricula}_${ultimaBatida.hora}`;
 
-      // Na primeira execução após abrir a página, apenas memoriza o último registro
+      // Primeira carga ao abrir a página
       if (ultimaHoraBatida === null) {
-        ultimaHoraBatida = identificadorBatida;
+        ultimaHoraBatida = identificador;
         return;
       }
 
-      // Se houver uma nova batida gravada pelo Python
-      if (identificadorBatida !== ultimaHoraBatida) {
-        ultimaHoraBatida = identificadorBatida;
-        exibirPontoTempoReal(ultimaBatida);
+      // Se entrou uma nova batida
+      if (identificador !== ultimaHoraBatida) {
+        ultimaHoraBatida = identificador;
+        exibirPontoConfirmado(ultimaBatida);
       }
     } catch (e) {
-      // Falha temporária de rede, continuará tentando no próximo ciclo
+      // Ignora oscilações momentâneas de conexão
     }
   }
 
-  function exibirPontoTempoReal(batida) {
+  function exibirPontoConfirmado(batida) {
     const painel = document.getElementById('painelStatus');
     const conteudo = document.getElementById('conteudoStatus');
 
     if (temporizadorLimpeza) clearTimeout(temporizadorLimpeza);
 
-    painel.classList.add('sucesso');
+    painel.className = "status-box sucesso";
     conteudo.innerHTML = `
       <div class="nome-colaborador">${batida.nome}</div>
       <div class="detalhe-ponto">Ponto gravado às <strong>${batida.hora}</strong> (${batida.status})</div>
     `;
 
-    // Apaga a mensagem após 5 segundos e volta ao estado de espera
+    // Limpa a tela após 5 segundos
     temporizadorLimpeza = setTimeout(() => {
-      painel.classList.remove('sucesso');
-      conteudo.className = "aguardando-texto";
-      conteudo.innerHTML = "Aguardando aproximação do crachá...";
+      painel.className = leitorEstaConectado ? "status-box" : "status-box bloqueado";
+      if (leitorEstaConectado) {
+        conteudo.className = "aguardando-texto";
+        conteudo.innerHTML = "Aguardando aproximação do crachá...";
+      } else {
+        conteudo.className = "offline-texto";
+        conteudo.innerHTML = "⚠️ O programa do leitor não está ativo.<br>Inicie o <strong>iniciar_ponto.bat</strong> no computador.";
+      }
     }, 5000);
   }
 
