@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cartão Ponto - Padrão Empresa</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #e2e8f0;
+      margin: 0;
+      padding: 20px;
+      color: #000;
+    }
+
+    /* Painel de Filtros */
+    .painel-controle {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 900px;
+      margin: 0 auto 25px auto;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+    label { font-size: 12px; font-weight: bold; color: #334155; }
+    select, input, button {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    button.btn-gerar {
+      background: #1e3a8a;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+    }
+    button.btn-imprimir {
+      background: #047857;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* Espelho do Cartão Ponto Físico */
+    .cartao-ponto {
+      background: #fdfbf7; /* Tom sutil lembrando o cartão de cartolina */
+      width: 820px;
+      margin: 0 auto;
+      padding: 20px;
+      border: 2px solid #222;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+
+    .cabecalho-empresa {
+      text-align: center;
+      border-bottom: 2px solid #000;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .cabecalho-empresa h2 {
+      margin: 0 0 4px 0;
+      font-size: 18px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .cabecalho-empresa .info-func {
+      font-size: 14px;
+      font-weight: bold;
+      margin: 4px 0;
+    }
+    .cabecalho-empresa .periodo {
+      font-size: 13px;
+      margin-top: 3px;
+    }
+
+    /* Tabela no formato exato das colunas do cartão */
+    table.tabela-ponto {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+      font-size: 12px;
+    }
+    table.tabela-ponto th, table.tabela-ponto td {
+      border: 1px solid #333;
+      padding: 4px 2px;
+      height: 22px;
+    }
+    table.tabela-ponto th {
+      background-color: #f1f1f1;
+      font-size: 11px;
+    }
+    .col-dia { width: 35px; font-weight: bold; background: #fafafa; }
+    .col-hora { width: 65px; font-family: "Courier New", Courier, monospace; font-size: 13px; font-weight: bold; }
+    .col-obs { text-align: left; padding-left: 6px !important; font-size: 11px; color: #555; }
+
+    .rodape-assinatura {
+      margin-top: 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 20px;
+      font-size: 12px;
+    }
+    .linha-assinatura {
+      border-top: 1px solid #000;
+      width: 320px;
+      text-align: center;
+      padding-top: 5px;
+    }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .no-print { display: none !important; }
+      .cartao-ponto {
+        border: 1px solid #000;
+        width: 100%;
+        box-shadow: none;
+        padding: 10px;
+      }
+      table.tabela-ponto th { background-color: #eee !important; -webkit-print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="painel-controle no-print">
+  <div class="filtros-grid">
+    <div>
+      <label>Colaborador / Fiscal:</label>
+      <select id="selectFiscal"></select>
+    </div>
+    <div>
+      <label>Data Início:</label>
+      <input type="date" id="dataInicio">
+    </div>
+    <div>
+      <label>Data Fim:</label>
+      <input type="date" id="dataFim">
+    </div>
+    <div>
+      <button class="btn-gerar" onclick="gerarEspelho()">Visualizar Cartão</button>
+    </div>
+    <div>
+      <button class="btn-imprimir" onclick="window.print()">Imprimir Espelho</button>
+    </div>
+  </div>
+</div>
+
+<!-- Layout Padrão do Cartão Físico -->
+<div class="cartao-ponto" id="documentoPonto">
+  <div class="cabecalho-empresa">
+    <h2>Cidade Verde Transporte Rodoviário</h2>
+    <div class="info-func" id="txtIdentificacao">MATRÍCULA / CARGO / NOME</div>
+    <div class="periodo" id="txtPeriodo">PERÍODO: --/--/---- a --/--/----</div>
+  </div>
+
+  <table class="tabela-ponto">
+    <thead>
+      <tr>
+        <th rowspan="2" class="col-dia">DIA</th>
+        <th colspan="2">MANHÃ (1ª PARTE)</th>
+        <th colspan="2">TARDE (2ª PARTE)</th>
+        <th colspan="2">EXTRA</th>
+        <th rowspan="2">OBSERVAÇÕES / OCORRÊNCIAS</th>
+      </tr>
+      <tr>
+        <th style="width: 65px;">Entrada</th>
+        <th style="width: 65px;">Saída</th>
+        <th style="width: 65px;">Entrada</th>
+        <th style="width: 65px;">Saída</th>
+        <th style="width: 60px;">Entrada</th>
+        <th style="width: 60px;">Saída</th>
+      </tr>
+    </thead>
+    <tbody id="linhasPonto">
+      <tr>
+        <td colspan="8" style="padding: 25px; color: #888;">Selecione o funcionário e o período para carregar os registros.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="rodape-assinatura">
+    <div>Recebi o espelho com as marcações acima conferidas.</div>
+    <div class="linha-assinatura">Assinatura do Colaborador</div>
+  </div>
+</div>
+
+<script>
+  // URL DA SUA API GOOGLE APPS SCRIPT
+  const URL_API = "https://script.google.com/macros/s/AKfycbyWRyOr7AhYSSOTMxTIOP-HKioX5xkIYwN-Yhv_gVBVlu0wqsAgP-boDxhr_v7n_Ei1uw/exec";
+
+  let listaFiscaisMemoria = [];
+
+  window.addEventListener('load', () => {
+    definirPeriodoQuinzenaOuMes();
+    carregarFiscais();
+  });
+
+  // Configura período inicial sugerido (ciclo comum de transporte rodoviário: dia 16 a 15)
+  function definirPeriodoQuinzenaOuMes() {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth();
+
+    // Início no dia 16 do mês anterior até dia 15 deste mês (ou dia 1 ao fim do mês)
+    const dInicio = new Date(ano, mes - 1, 16);
+    const dFim = new Date(ano, mes, 15);
+
+    document.getElementById('dataInicio').value = formatarDataInput(dInicio);
+    document.getElementById('dataFim').value = formatarDataInput(dFim);
+  }
+
+  function formatarDataInput(data) {
+    const a = data.getFullYear();
+    const m = String(data.getMonth() + 1).padStart(2, '0');
+    const d = String(data.getDate()).padStart(2, '0');
+    return `${a}-${m}-${d}`;
+  }
+
+  function formatarDataBR(dataStr) {
+    const p = dataStr.split('-');
+    return `${p[2]}/${p[1]}/${p[0]}`;
+  }
+
+  async function carregarFiscais() {
+    try {
+      const resp = await fetch(`${URL_API}?acao=obterFiscais`);
+      listaFiscaisMemoria = await resp.json();
+      const select = document.getElementById('selectFiscal');
+
+      listaFiscaisMemoria.forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.matricula;
+        opt.innerText = `${f.matricula} - ${f.nome} (${f.local})`;
+        select.appendChild(opt);
+      });
+    } catch (e) {
+      alert("Erro ao buscar fiscais cadastrados.");
+    }
+  }
+
+  async function gerarEspelho() {
+    const matricula = document.getElementById('selectFiscal').value;
+    const dtInicio = document.getElementById('dataInicio').value;
+    const dtFim = document.getElementById('dataFim').value;
+    const corpo = document.getElementById('linhasPonto');
+
+    if (!matricula) {
+      alert("Selecione um funcionário.");
+      return;
+    }
+
+    const fiscalObj = listaFiscaisMemoria.find(f => f.matricula === matricula);
+    if (fiscalObj) {
+      document.getElementById('txtIdentificacao').innerText = `${fiscalObj.matricula} - FISCAL DE TRANSPORTE - ${fiscalObj.nome.toUpperCase()}`;
+    }
+    document.getElementById('txtPeriodo').innerText = `PERÍODO: ${formatarDataBR(dtInicio)} a ${formatarDataBR(dtFim)}`;
+
+    corpo.innerHTML = `<tr><td colspan="8" style="padding: 20px;">Carregando dados da folha...</td></tr>`;
+
+    try {
+      const url = `${URL_API}?acao=relatorioPeriodo&matricula=${encodeURIComponent(matricula)}&dataInicio=${dtInicio}&dataFim=${dtFim}`;
+      const resp = await fetch(url);
+      const dias = await resp.json();
+
+      corpo.innerHTML = '';
+      dias.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="col-dia">${d.dia}</td>
+          <td class="col-hora">${d.e1 || ''}</td>
+          <td class="col-hora">${d.s1 || ''}</td>
+          <td class="col-hora">${d.e2 || ''}</td>
+          <td class="col-hora">${d.s2 || ''}</td>
+          <td class="col-hora">${d.extra_e || ''}</td>
+          <td class="col-hora">${d.extra_s || ''}</td>
+          <td class="col-obs">${d.ocorrencias}</td>
+        `;
+        corpo.appendChild(tr);
+      });
+    } catch (e) {
+      corpo.innerHTML = `<tr><td colspan="8" style="color:red; padding: 20px;">Falha ao obter os registros do período.</td></tr>`;
+    }
+  }
+</script>
+
+</body>
+</html>
