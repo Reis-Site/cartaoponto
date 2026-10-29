@@ -3,169 +3,147 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de Controle de Ponto</title>
+  <title>Terminal de Ponto</title>
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background-color: #eef2f6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
       margin: 0;
       padding: 20px;
     }
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
+    .terminal-card {
       background: #ffffff;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      width: 100%;
+      max-width: 580px;
+      text-align: center;
     }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 2px solid #edf2f7;
-      padding-bottom: 15px;
+    .posto-selector {
       margin-bottom: 25px;
+      text-align: right;
     }
-    h1 { margin: 0; font-size: 24px; color: #1e293b; }
-    .select-posto {
-      padding: 8px 12px;
-      font-size: 15px;
-      border: 1px solid #cbd5e1;
+    .posto-selector select {
+      padding: 6px 12px;
+      font-size: 14px;
       border-radius: 6px;
+      border: 1px solid #cbd5e1;
       background: #f8fafc;
       font-weight: 600;
     }
-    .leitor-box {
-      text-align: center;
-      background: #f8fafc;
-      border: 2px dashed #cbd5e1;
-      border-radius: 8px;
-      padding: 25px;
-      margin-bottom: 25px;
-    }
-    .leitor-box p {
+    h1 {
       margin: 0 0 10px 0;
-      font-size: 16px;
-      color: #64748b;
+      color: #1e293b;
+      font-size: 26px;
     }
-    #campoMatricula {
-      font-size: 28px;
+    p.instrucao {
+      color: #64748b;
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+    #campoCartao {
+      font-size: 30px;
       letter-spacing: 2px;
       text-align: center;
-      padding: 10px 15px;
-      width: 320px;
-      border: 2px solid #2563eb;
-      border-radius: 8px;
-      outline: none;
-    }
-    #alerta {
-      margin-top: 15px;
-      font-size: 16px;
-      font-weight: 600;
-      min-height: 24px;
-    }
-    .alerta-ok { color: #16a34a; }
-    .alerta-erro { color: #dc2626; }
-    .alerta-info { color: #2563eb; }
-    
-    table {
+      padding: 14px 20px;
       width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-      font-size: 14px;
+      max-width: 360px;
+      border: 3px solid #2563eb;
+      border-radius: 10px;
+      outline: none;
+      background: #f8fafc;
+      margin-bottom: 20px;
     }
-    th, td {
-      padding: 12px 14px;
-      text-align: left;
-      border-bottom: 1px solid #e2e8f0;
+    .alerta {
+      font-size: 17px;
+      font-weight: 700;
+      min-height: 48px;
+      padding: 10px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      opacity: 0;
     }
-    th {
-      background-color: #f1f5f9;
-      color: #475569;
-      font-weight: 600;
-    }
-    .tag {
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 4px;
+    .alerta.visivel { opacity: 1; }
+    .alerta-ok { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .alerta-erro { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+    .alerta-info { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .relogio {
+      margin-top: 25px;
+      font-size: 20px;
+      color: #94a3b8;
+      font-family: monospace;
       font-weight: bold;
-      font-size: 12px;
     }
-    .tag-ok { background: #dcfce7; color: #15803d; }
-    .tag-atraso { background: #fee2e2; color: #b91c1c; }
-    .tag-extra { background: #fef3c7; color: #b45309; }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <div class="header">
-    <h1>Controle de Ponto - Fiscais</h1>
-    <div>
-      <label for="postoAcesso"><strong>Posto Atual: </strong></label>
-      <select id="postoAcesso" class="select-posto">
-        <option value="Terminal">Terminal</option>
-        <option value="Garagem Sul">Garagem Sul</option>
-      </select>
-    </div>
+<div class="terminal-card">
+  <div class="posto-selector">
+    <label for="postoAcesso"><strong>Posto: </strong></label>
+    <select id="postoAcesso">
+      <option value="Terminal">Terminal</option>
+      <option value="Garagem Sul">Garagem Sul</option>
+    </select>
   </div>
 
-  <div class="leitor-box">
-    <p>Aproxime o crachá do fiscal na leitora</p>
-    <input type="text" id="campoMatricula" autofocus autocomplete="off" placeholder="Aguardando...">
-    <div id="alerta"></div>
-  </div>
+  <h1>Registro de Ponto</h1>
+  <p class="instrucao">Aproxime o cartão na leitora</p>
 
-  <h2>Relatório de Batidas de Hoje</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Horário</th>
-        <th>Matrícula</th>
-        <th>Fiscal</th>
-        <th>Local</th>
-        <th>Marcação</th>
-        <th>Status / Diagnóstico</th>
-      </tr>
-    </thead>
-    <tbody id="listaRelatorio">
-      <tr><td colspan="6" style="text-align:center; color:#94a3b8;">Carregando histórico...</td></tr>
-    </tbody>
-  </table>
+  <input type="text" id="campoCartao" autofocus autocomplete="off" placeholder="Aguardando...">
+
+  <div id="boxAlerta" class="alerta"></div>
+
+  <div class="relogio" id="txtRelogio">--:--:--</div>
 </div>
 
 <script>
-  // COLOQUE AQUI A SUA URL GERADA NO GOOGLE APPS SCRIPT
-  const URL_API_GOOGLE = "https://script.google.com/macros/s/AKfycbyWRyOr7AhYSSOTMxTIOP-HKioX5xkIYwN-Yhv_gVBVlu0wqsAgP-boDxhr_v7n_Ei1uw/exec";
+  const URL_API = "https://script.google.com/macros/s/AKfycbyWRyOr7AhYSSOTMxTIOP-HKioX5xkIYwN-Yhv_gVBVlu0wqsAgP-boDxhr_v7n_Ei1uw/exec";
 
-  const campo = document.getElementById('campoMatricula');
-  const alerta = document.getElementById('alerta');
+  const campo = document.getElementById('campoCartao');
+  const alerta = document.getElementById('boxAlerta');
   const posto = document.getElementById('postoAcesso');
-  const tabela = document.getElementById('listaRelatorio');
+  let temporizadorMensagem = null;
 
-  // Garante autofoco no input para capturar os dados da leitora
-  function focarCampo() {
+  function manterFoco() {
     campo.focus();
   }
-  document.addEventListener('click', focarCampo);
+  document.addEventListener('click', manterFoco);
   window.addEventListener('load', () => {
-    focarCampo();
-    carregarRelatorio();
+    manterFoco();
+    iniciarRelogio();
   });
 
-  // Captura o Enter gerado pelo leitor/emulador
+  function exibirMensagem(texto, tipo, duracaoMs = 5000) {
+    if (temporizadorMensagem) clearTimeout(temporizadorMensagem);
+
+    alerta.className = `alerta visivel alerta-${tipo}`;
+    alerta.innerText = texto;
+
+    temporizadorMensagem = setTimeout(() => {
+      alerta.className = "alerta";
+      alerta.innerText = "";
+    }, duracaoMs);
+  }
+
   campo.addEventListener('keydown', async function(e) {
     if (e.key === 'Enter') {
       const matricula = campo.value.trim();
       if (!matricula) return;
 
-      alerta.className = "alerta-info";
-      alerta.innerText = "Validando ponto...";
+      exibirMensagem("Gravando marcação...", "info", 10000);
 
       try {
-        const resposta = await fetch(URL_API_GOOGLE, {
+        const resp = await fetch(URL_API, {
           method: 'POST',
           body: JSON.stringify({
             matricula: matricula,
@@ -173,58 +151,27 @@
           })
         });
 
-        const dados = await resposta.json();
+        const dados = await resp.json();
 
         if (dados.sucesso) {
-          alerta.className = "alerta-ok";
-          alerta.innerText = `Ponto de ${dados.nome} gravado com sucesso! (${dados.status})`;
-          carregarRelatorio();
+          exibirMensagem(`Ponto de ${dados.nome} gravado com sucesso! (${dados.status})`, "ok", 5000);
         } else {
-          alerta.className = "alerta-erro";
-          alerta.innerText = dados.mensagem;
+          exibirMensagem(`Atenção: ${dados.mensagem}`, "erro", 6000);
         }
       } catch (err) {
-        alerta.className = "alerta-erro";
-        alerta.innerText = "Falha ao enviar registro. Verifique a conexão.";
+        exibirMensagem("Erro de comunicação com o servidor de ponto.", "erro", 5000);
       } finally {
         campo.value = '';
-        focarCampo();
+        manterFoco();
       }
     }
   });
 
-  // Busca as batidas do dia diretamente da planilha
-  async function carregarRelatorio() {
-    try {
-      const resp = await fetch(URL_API_GOOGLE);
-      const lista = await resp.json();
-
-      if (lista.length === 0) {
-        tabela.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8;">Nenhum registro encontrado hoje.</td></tr>';
-        return;
-      }
-
-      tabela.innerHTML = '';
-      lista.forEach(item => {
-        let tagClass = 'tag-ok';
-        if (item.status.includes('Atrasado') || item.status.includes('Antecipada')) tagClass = 'tag-atraso';
-        if (item.status.includes('Extra')) tagClass = 'tag-extra';
-
-        const row = `
-          <tr>
-            <td><strong>${item.hora}</strong></td>
-            <td>${item.matricula}</td>
-            <td>${item.nome}</td>
-            <td>${item.local}</td>
-            <td>${item.marcacao}</td>
-            <td><span class="tag ${tagClass}">${item.status}</span></td>
-          </tr>
-        `;
-        tabela.innerHTML += row;
-      });
-    } catch (e) {
-      tabela.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#ef4444;">Erro ao carregar o relatório.</td></tr>';
-    }
+  function iniciarRelogio() {
+    setInterval(() => {
+      const agora = new Date();
+      document.getElementById('txtRelogio').innerText = agora.toLocaleTimeString('pt-BR');
+    }, 1000);
   }
 </script>
 
